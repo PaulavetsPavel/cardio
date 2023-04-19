@@ -26,9 +26,6 @@ class Workout {
           'ru-Ru'
         ).format(this.date)}`);
   }
-  click() {
-    this.clickNumber++;
-  }
 }
 class Running extends Workout {
   type = 'running';
@@ -63,13 +60,17 @@ class App {
   #workouts = [];
   constructor() {
     this._getPosition();
-    //add marker after form submit
+    this._getLocalStorageData();
+    //add marker & sidebar after form submit
     form.addEventListener('submit', this._newWorkout.bind(this));
     // switch run or bike
     inputType.addEventListener('change', this._toggleCliembField);
     containerWorkouts.addEventListener('click', this._moveToWorkout.bind(this));
   }
-
+  reset() {
+    localStorage.removeItem('workouts');
+    location.reload()
+  }
   _getPosition() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -83,6 +84,16 @@ class App {
     }
   }
 
+  _getLocalStorageData() {
+    const workoutsFromLocalStorage = JSON.parse(
+      localStorage.getItem('workouts')
+    );
+    if (!workoutsFromLocalStorage) return;
+
+    this.#workouts = workoutsFromLocalStorage;
+    this.#workouts.forEach(workout => this._displayWorkoutOnSidebar(workout));
+  }
+
   _loadMap(position) {
     const { latitude, longitude } = position.coords;
     const coords = [latitude, longitude];
@@ -92,15 +103,18 @@ class App {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(this.#map);
+
+    this.#workouts.forEach(workout => this._displayWorkout(workout));
     // click on the map
     this.#map.on('click', this._showForm.bind(this));
   }
 
-  _showForm(e) {
-    this.#mapEvent = e;
+  _showForm(event) {
+    this.#mapEvent = event;
     form.classList.remove('hidden');
     inputDistance.focus();
   }
+
   _hideForm() {
     inputDistance.value =
       inputDuration.value =
@@ -109,28 +123,28 @@ class App {
         '';
     form.classList.add('hidden');
   }
+
   _toggleCliembField() {
     inputClimb.closest('.form__row').classList.toggle('form__row--hidden');
     inputTemp.closest('.form__row').classList.toggle('form__row--hidden');
   }
 
-  _newWorkout(e) {
+  _newWorkout(event) {
     const areNumbers = (...numbers) =>
       numbers.every(num => Number.isFinite(num));
-
     const areNumbersPositive = (...numbers) => numbers.every(num => num > 0);
-    e.preventDefault();
+
+    event.preventDefault();
     const { lat, lng } = this.#mapEvent.latlng;
     let workout;
-    // get data from form
+
     const type = inputType.value;
     const distance = +inputDistance.value;
     const duration = +inputDuration.value;
 
-    // if training is run create object Running
     if (type === 'running') {
       const temp = +inputTemp.value;
-      // validation date
+
       if (
         !areNumbers(distance, duration, temp) ||
         !areNumbersPositive(distance, duration, temp)
@@ -139,10 +153,10 @@ class App {
 
       workout = new Running([lat, lng], distance, duration, temp);
     }
-    // if training is bike create object Cicling
+
     if (type === 'cycling') {
       const climb = +inputClimb.value;
-      // validation date
+
       if (
         !areNumbers(distance, duration, climb) ||
         !areNumbersPositive(distance, duration)
@@ -150,13 +164,13 @@ class App {
         return alert('Введите положительное число.');
       workout = new Cycling([lat, lng], distance, duration, climb);
     }
-    // add object in array
+
     this.#workouts.push(workout);
 
-    // show training in the list and map
     this._displayWorkout(workout);
     this._displayWorkoutOnSidebar(workout);
-    //hide form
+    this._addWorkoutToLocalStorage();
+
     this._hideForm();
   }
 
@@ -175,6 +189,7 @@ class App {
       )
       .openPopup();
   }
+
   _displayWorkoutOnSidebar(workout) {
     let html = `
         <li class="workout workout--${workout.type}" data-id="${workout.id}">
@@ -222,8 +237,9 @@ class App {
     }
     form.insertAdjacentHTML('afterend', html);
   }
-  _moveToWorkout(e) {
-    const workoutElement = e.target.closest('.workout');
+
+  _moveToWorkout(event) {
+    const workoutElement = event.target.closest('.workout');
     if (!workoutElement) return;
     const workout = this.#workouts.find(
       item => item.id === workoutElement.dataset.id
@@ -235,7 +251,10 @@ class App {
         duration: 1,
       },
     });
-    Workout.click();
+  }
+
+  _addWorkoutToLocalStorage() {
+    localStorage.setItem('workouts', JSON.stringify(this.#workouts));
   }
 }
 
